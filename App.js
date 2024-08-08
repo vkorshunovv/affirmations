@@ -4,6 +4,8 @@ import {
   StyleSheet,
   Dimensions,
   Animated,
+  Easing,
+  Text,
 } from "react-native";
 import * as Animatable from "react-native-animatable";
 import Icon from "react-native-vector-icons/Ionicons";
@@ -15,8 +17,10 @@ const { width, height } = Dimensions.get("window");
 const App = () => {
   const buttonRef = useRef(null);
   const [isButtonVisible, setIsButtonVisible] = useState(true);
-  const opacity = useRef(new Animated.Value(0)).current;
+  const [isVideoPlaying, setIsVideoPlaying] = useState(false);
+  const videoOpacity = useRef(new Animated.Value(0)).current;
   const scaleValue = useRef(new Animated.Value(1)).current;
+  const bounceScale = useRef(new Animated.Value(1)).current;
 
   const handlePressIn = () => {
     Animated.spring(scaleValue, {
@@ -31,8 +35,9 @@ const App = () => {
         buttonRef.current.fadeOut(2000);
         setTimeout(() => {
           setIsButtonVisible(false);
+          setIsVideoPlaying(true);
 
-          Animated.timing(opacity, {
+          Animated.timing(videoOpacity, {
             toValue: 1,
             duration: 3000,
             useNativeDriver: true,
@@ -43,36 +48,91 @@ const App = () => {
   };
 
   useEffect(() => {
-    buttonRef.current.bounceIn(2000);
-  }, []);
+    let bounceAnimation;
+    if (isButtonVisible) {
+      bounceAnimation = Animated.loop(
+        Animated.sequence([
+          Animated.timing(bounceScale, {
+            toValue: 1.08,
+            duration: 1500,
+            easing: Easing.inOut(Easing.ease),
+            useNativeDriver: true,
+          }),
+          Animated.timing(bounceScale, {
+            toValue: 1,
+            duration: 1500,
+            easing: Easing.inOut(Easing.ease),
+            useNativeDriver: true,
+          }),
+        ])
+      );
+      bounceAnimation.start();
+      buttonRef.current.bounceIn(2000);
+    } else {
+      setTimeout(() => {
+        Animated.timing(videoOpacity, {
+          toValue: 0,
+          duration: 3000,
+          useNativeDriver: true,
+        }).start(() => {
+          setIsVideoPlaying(false);
+          setIsButtonVisible(true);
+        });
+      }, 20000);
+    }
+
+    return () => {
+      if (bounceAnimation) {
+        bounceAnimation.stop();
+      }
+    };
+  }, [isButtonVisible]);
 
   return (
     <LinearGradient
-     colors={['rgb(35, 9, 31)', 'rgb(0, 0, 0)']}
-     start={{ x: 0.5, y: -0.069 }}
-     end={{ x: 0.5, y: 0.767 }}
-     style={styles.container}
-   >
+      colors={["rgb(35, 9, 31)", "rgb(0, 0, 0)"]}
+      start={{ x: 0.5, y: -0.069 }}
+      end={{ x: 0.5, y: 0.767 }}
+      style={styles.container}
+    >
       {isButtonVisible ? (
         <Animatable.View ref={buttonRef}>
-          <Animated.View style={{ transform: [{ scale: scaleValue }] }}>
+          <Animated.View
+            style={{
+              transform: [{ scale: scaleValue }, { scale: bounceScale }],
+            }}
+          >
             <TouchableOpacity
               activeOpacity={1}
               style={styles.button}
               onPressIn={handlePressIn}
             >
-              <Icon name="play" size={100} color="rgb(35, 9, 31)" />
+              <Text style={styles.btnText}>Click Me</Text>
             </TouchableOpacity>
           </Animated.View>
         </Animatable.View>
       ) : (
-        <Animated.View style={{ ...styles.backgroundVideo, opacity }}>
+        <Animated.View
+          style={{ ...styles.backgroundVideo, opacity: videoOpacity }}
+        >
           <Video
             source={require("./assets/fluid.mp4")}
             style={styles.backgroundVideo}
             resizeMode="cover"
-            shouldPlay
-            isLooping
+            shouldPlay={isVideoPlaying}
+            isLooping={isVideoPlaying}
+            onPlaybackStatusUpdate={(status) => {
+              if (status.didJustFinish && !status.isLooping) {
+                Animated.timing(videoOpacity, {
+                  toValue: 0,
+                  duration: 3000,
+                  useNativeDriver: true,
+                }).start(() => {
+                  setIsVideoPlaying(false);
+                  setIsButtonVisible(true);
+                });
+              }
+            }}
           />
         </Animated.View>
       )}
@@ -106,9 +166,16 @@ const styles = StyleSheet.create({
     width,
     height,
   },
+  btnText: {
+    fontSize: 30,
+    color: "rgb(35, 9, 31)",
+    textTransform: "uppercase",
+    fontWeight: "bold",
+  },
   video: {
     ...StyleSheet.absoluteFillObject,
   },
 });
 
 export default App;
+
